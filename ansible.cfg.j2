@@ -1,0 +1,12 @@
+[galaxy]
+server_list = published, validated
+
+[galaxy_server.published]
+url={{ hub_base }}
+auth_url={{ hub_auth }}
+token={{ hub_token }}
+
+[galaxy_server.validated]
+url={{ hub_base }}/content/validated/
+auth_url={{ hub_auth }}
+token={{ hub_token }}

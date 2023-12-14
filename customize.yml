@@ -1,0 +1,66 @@
+---
+- name: Customize network lab to use network.base
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    hub_token: aabbcc # from https://console.redhat.com/ansible/automation-hub/token
+    hub_base: https://console.redhat.com/api/automation-hub/
+    hub_auth: https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token
+    nav_mode: stdout
+    nav_artifacts: false
+
+  tasks:
+    - name: Write user-level ansible config
+      ansible.builtin.template:
+        src: ansible.cfg.j2
+        dest: /home/student/.ansible.cfg
+
+    - name: Apply ansible-navigator config
+      vars:
+        _existing_cfg: "{{ lookup('file', '/home/student/.ansible-navigator.yml') | from_yaml }}"
+        _new_cfg:
+          ansible-navigator:
+            execution-environment:
+              volume-mounts:
+                - dest: /tmp/network_inventory
+                  src: /home/student/lab_inventory
+                - dest: /tmp/network_backup
+                  src: /home/student/project/backup
+            mode: "{{ nav_mode }}"
+            playbook-artifact:
+              enable: "{{ nav_artifacts }}"
+      ansible.builtin.copy:
+        content: "{{ _existing_cfg | combine(_new_cfg, recursive=True, list_merge='append_rp') | to_nice_yaml }}"
+        dest: /home/student/.ansible-navigator.yml
+
+    - name: Fully qualify OS names
+      vars:
+        _inventory_lines: "{{ lookup('file', '/home/student/lab_inventory/hosts') | split('\n') }}"
+      ansible.builtin.lineinfile:
+        line: "{{ item.line }}"
+        regexp: "{{ item.regexp }}"
+        path: /home/student/lab_inventory/hosts
+      loop:
+        - line: ansible_network_os=cisco.ios.ios
+          regexp: ansible_network_os=ios
+        - line: ansible_network_os=junipernetworks.junos.junos
+          regexp: ansible_network_os=junos
+        - line: ansible_network_os=arista.eos.eos
+          regexp: ansible_network_os=eos
+      when: item.line in _inventory_lines
+
+    - name: Create project directories
+      ansible.builtin.file:
+        state: directory
+        path: "{{ item }}"
+      loop:
+        - /home/student/project
+        - /home/student/project/backup
+
+    - name: Link to existing inventory
+      ansible.builtin.file:
+        state: link
+        src: /home/student/lab_inventory
+        dest: /home/student/project/inventory
